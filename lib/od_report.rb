@@ -1,5 +1,5 @@
 require File.expand_path('../od_report/version', __FILE__)
-require File.expand_path('../od_report/fix_float',  __FILE__)
+require File.expand_path('../od_report/fix_numbers',  __FILE__)
 require File.expand_path('../od_report/field',   __FILE__)
 require File.expand_path('../od_report/fields',  __FILE__)
 require File.expand_path('../od_report/nested',  __FILE__)
