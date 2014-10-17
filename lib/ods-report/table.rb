@@ -1,6 +1,6 @@
 module OdReport::ODS
   class Table
-    using FixFloat
+    using FixNumbers
     attr_accessor :options, :tables
 
     def initialize(opts)
