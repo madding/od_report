@@ -10,11 +10,9 @@ module FixNumbers
     end
   end
 
-  refine Float do
-    include Fixer
-  end
-
-  refine BigDecimal do
-    include Fixer
+  [Float, BigDecimal].each do |num_type|
+    refine num_type do
+      include Fixer
+    end
   end
 end
