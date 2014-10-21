@@ -1,5 +1,7 @@
 module OdReport
   class Field
+    using OdValues
+
     attr_accessor :name
 
     DELIMITERS = ['[', ']']
@@ -42,6 +44,13 @@ module OdReport
       else
         raise "Can't find field [#{key}] in this #{data_item.class}"
       end
+    end
+
+    def write_to_ods_cell(cell, data_item = nil)
+      val = get_value(data_item)
+      cell["office:#{val.value_attribute_name}"] = val.od_value
+      cell["office:value-type"] = val.od_type
+      cell.xpath("text:p").each { |t| t.content = val.od_s }
     end
   end
 end

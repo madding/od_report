@@ -1,6 +1,6 @@
 module OdReport::ODS
   class Report
-    include OdReport::Fields
+    include Fields
 
     attr_accessor :fields, :tables, :file, :texts
 
