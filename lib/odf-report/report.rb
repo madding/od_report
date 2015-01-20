@@ -1,7 +1,7 @@
 module OdReport::ODF
 
 class Report
-  include OdReport::Fields, Images
+  include Fields, Images
 
   attr_accessor :fields, :tables, :images, :sections, :file, :texts
 
