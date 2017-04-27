@@ -1,7 +1,7 @@
 module OdReport::ODS
   class Table
-    using FixFloat
-    attr_accessor :options, :tables
+    using OdValues
+    attr_accessor :options, :tables, :table_name
 
     def initialize(opts)
       if opts[:collection].is_a?(Hash)
@@ -9,12 +9,12 @@ module OdReport::ODS
       else
         @records = opts[:collection]
       end
-
-      instance_variable_set("@#{opts[:name]}", @records)
+      @table_name = opts[:name]
+      instance_variable_set("@#{@table_name}", @records)
       if defined?(opts[:name])
-        self.class.send(:attr_reader, opts[:name])
+        self.class.send(:attr_reader, @table_name)
       else
-        raise "Invalid collection name: #{opts[:name]}"
+        raise "Invalid collection name: #{@table_name}"
       end
 
       @tables  = []
@@ -45,14 +45,14 @@ module OdReport::ODS
         count_opened_operands = 0
         current_block = []
         table.xpath('//table:table-row').each_with_index do |row, index|
-          if row.text.match(/\[%[^=](.+)%\]/) # <% %>
-            operand = row.text.match(/\[%(.+)%\]/)[1]
+          if row.text.match(OdReport::ODS::RegExps::BLOCK) # <% %>
+            operand = row.text.match(OdReport::ODS::RegExps::BLOCK)[1]
             if opened_operand?(operand)
-              current_block << [index, row.to_s]
+              current_block << [index, row]
               count_opened_operands += 1
             else # closed operand
               if count_opened_operands > 0
-                current_block << [index, row.to_s]
+                current_block << [index, row]
                 count_opened_operands -= 1
                 if count_opened_operands == 0
                   blocks << current_block
@@ -61,14 +61,15 @@ module OdReport::ODS
               end
             end
           elsif count_opened_operands > 0
-            current_block << [index, row.to_s]
+            current_block << [index, row]
           end
         end
 
         if blocks.present?
           result_from_blocks = []
           blocks.each do |block|
-            result = evaluate_block(block)
+            result, skip = evaluate_block(block)
+            next if skip
             begin_row = block.first.first
             end_row = block.last.first
             result_from_blocks << [begin_row, end_row, result]
@@ -82,22 +83,47 @@ module OdReport::ODS
     end
 
     private
+
+    def check_table(code)
+      if res = code.match(/\s*(\w+)\./)
+        res[1] != table_name.to_s
+      else
+        false
+      end
+    end
+
     def evaluate_block(block)
+      skip_block = false
       fragment_doc = ''
       block_code = ''
-      block.each do |index, row|
-        row = row.gsub("\n", " ")
-        if row.match(/\[%=([^%]+)%\]/) # <%= %>
-          replaced_row = row.gsub(/\[%=([^%]+)%\]/m, '\' + (\1).to_s + \'')
-          block_code += "fragment_doc << '" + replaced_row + "'\n"
-        elsif row.match(/\[%([^%]+)%\]/) # <% %>
-          block_code += row.match(/\[%([^%]+)%\]/)[1] + "\n"
+      table_opened = false
+      block.each do |_, row|
+        row_text = row.to_xml.tr("\n", ' ')
+        if row_text.match(OdReport::ODS::RegExps::VALUE) # <%= %>
+          block_code << "fragment_doc << '#{gsub_cells(row.dup)}'\n"
+        elsif row_text.match(OdReport::ODS::RegExps::BLOCK) # <% %>
+          code = row_text.match(OdReport::ODS::RegExps::BLOCK)[1]
+          skip_block = check_table(code) if opened_operand?(code) && !table_opened
+          table_opened = true
+          block_code << code + "\n"
         else # str
-          block_code += "fragment_doc << '#{row}' \n"
+          block_code << "fragment_doc << '#{row_text}'\n"
         end
       end
-      block_code += "fragment_doc \n"
-      eval(escape_code(block_code))
+      block_code << "fragment_doc\n"
+      res = eval(escape_code(block_code)) unless skip_block
+      [res, skip_block]
+    end
+
+    def gsub_cells(row)
+      row.xpath('table:table-cell').each do |cell|
+        next unless cell.to_xml =~ OdReport::ODS::RegExps::VALUE
+        value_name = cell.to_xml.match(OdReport::ODS::RegExps::VALUE)[1]
+        cell["office:'+(#{value_name}).value_attribute_name+'"] = "'+(#{value_name}).od_value+'"
+        cell["office:value-type"] = "'+(#{value_name}).od_type+'"
+        cell.xpath("text:p").each { |t| t.content = "'+(#{value_name}).od_s+'" }
+      end
+      row.to_xml.gsub("\n", " ")
     end
 
     def escape_code(code)

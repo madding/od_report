@@ -1,17 +1,17 @@
-h1. OD REPORT
+# OD REPORT
 
 Gem for generating .odt(.ods) files by making strings, images, tables and sections replacements in a previously created .odt(.ods) file.
 
-h2. INSTALL
+## INSTALL
 
 Add to Gemfile
-<pre>
+```ruby
   gem "od_report", git: "https://github.com/madding/od_report"
-</pre>
+```
 
-h2. USAGE ODF
+## USAGE ODF
 
-h3. Step 1  --  the template
+### Step 1  --  the template
 
 First of all, you need to create a .odt file to serve as a template
 
@@ -19,83 +19,74 @@ Templates are normal .odt files with placeholders for Substitutions
 
 There are now *four* kinds of substitutions available: *fields*, *tables*, *images* and *sections*.
 
-h3. Fields placeholders
+### Fields placeholders
 
 It's just an upcase sentence, surrounded by brackets. It will be replaced for wathever value you supply.
 
 In the folowing example:
 
-<pre>
-report = OdReport::ODF::Report.new("Users/john/my_template.odt") do |r|
-  r.add_field :user_name, @user.name
-  r.add_field :address, "My new address"
-end
-</pre>
+```ruby
+  report = OdReport::ODF::Report.new("Users/john/my_template.odt") do |r|
+    r.add_field :user_name, @user.name
+    r.add_field :address, "My new address"
+  end
+```
 
-All occurences of @[USER_NAME]@ found in the file will be replaced by the value of @@user.name@ whereas all @[ADDRESS]@ 'es will contains @My new address@
+All occurences of `[USER_NAME]` found in the file will be replaced by the value of `@user.name` whereas all `[ADDRESS]` 'es will contains `My new address`
 
 It's as simple as that.
 
 
-h3. Table placeholders
+### Table placeholders
 
 To use table placeholders, you should create a Table in your document and give it a name. In OpenOffice, it's just a matter of right-clicking the table you just created, choose _Table Properties..._ and type a name in the Name field.
 
-If you inform @:header=>true@, the first row will be treated as a *header* and left untouched. The remaining rows will be used as the template for the table. If you have more than one template row, they will be cycled. This is usefull for making zebra tables.
+If you inform `:header=>true`, the first row will be treated as a *header* and left untouched. The remaining rows will be used as the template for the table. If you have more than one template row, they will be cycled. This is usefull for making zebra tables.
 
-As with Field placeholders, just insert a @[FIELD_NAME]@ in each cell and let the magic takes place.
+As with Field placeholders, just insert a `[FIELD_NAME]` in each cell and let the magic takes place.
 
 Taking the folowing example:
 
-<pre>
+```ruby
 report = OdReport::ODF::Report.new("Users/john/my_template.odt") do |r|
 
   r.add_field "USER_NAME", @user.nome
   r.add_field "ADDRESS", @user.address
 
-  r.add_table("TABLE_1", @list_of_itens, :header=>true) do |t|
+  r.add_table("TABLE_1", @list_of_items, :header=>true) do |t|
     t.add_column(:item_id, :id)
     t.add_column(:description) do { |item| "==> #{item.description}" }
   end
 
 end
-</pre>
+```
 
 and considering you have a table like this in your template
 
-<pre>
----------------------------------
-|  [ITEM_ID]  |  [DESCRIPTION]  |
----------------------------------
+|   [ITEM_ID]   | [DESCRIPTION] |
+| ------------- | ------------- |
+|               |               |
 
-* this is my lame attempt to draw a table.
-  you don't suppose to type this.
-  you have to use an actual table.
-  i don't know... just thought I'd mention it ;-)
-</pre>
-
-and a collection @list_of_itens, it will be created one row for each item in the collection, and the replacement will take place accordingly.
+and a collection `@list_of_items`, it will be created one row for each item in the collection, and the replacement will take place accordingly.
 
 Any format applied to the fields in the template will be preserved.
 
 
-h3. Images
+### Images
 
 You must put a mock image in your odt template and give it a name. That name will be used to replace the mock image for the actual image.
 You can also assign any properties you want to the mock image and they will be kept once the image is replaced.
 
 An image replace would look like this:
 
-<pre>
+```ruby
 report = OdReport::ODF::Report.new("Users/john/my_template.odt") do |r|
-
   r.add_image :graphics1, "/path/to/the/image.jpg"
-
 end
-</pre>
+```
 
 
-h3. Sections
+### Sections
 
 Sometimes, you have to repeat a whole chunk of a document, in a structure a lot more complex than a table. Now you can make a Section in your template and use it in this situations. Creating a Section in OpenOffice is as easy as select menu *Insert* and then *Section...*, and then choose a name for it.
 
@@ -103,70 +94,60 @@ Sometimes, you have to repeat a whole chunk of a document, in a structure a lot 
 
 Let's see an example:
 
-<pre>
+```ruby
+@invoices = Invoice.find(:all)
 
-  @invoices = Invoice.find(:all)
+report = OdReport::ODF::Report.new("reports/invoice.odt") do |r|
 
-  report = OdReport::ODF::Report.new("reports/invoice.odt") do |r|
+  r.add_field(:title, "INVOICES REPORT")
+  r.add_field(:date, Date.today)
 
-    r.add_field(:title, "INVOICES REPORT")
-    r.add_field(:date, Date.today)
+  r.add_section("SC_INVOICE", @invoices) do |s|
 
-    r.add_section("SC_INVOICE", @invoices) do |s|
+    s.add_field(:number) { |invoice| invoice.number.to_s.rjust(5, '0') }
+    s.add_field(:name,    :customer_name)
+    s.add_field(:address, :customer_address)
 
-      s.add_field(:number) { |invoice| invoice.number.to_s.rjust(5, '0') }
-      s.add_field(:name,    :customer_name)
-      s.add_field(:address, :customer_address)
-
-      s.add_table("TB_ITEMS", :items, :header => true) do |t|
-        t.add_column(:id)
-        t.add_column(:product) {|item| item.product.name }
-        t.add_column(:value, :product_value)
-      end
-
-      s.add_field(:total) do |invoice|
-        if invoice.status == 'CLOSED'
-          invoice.total
-        else
-          invoice.items.sum('product_value')}
-        end
-      end
-
-      s.add_section("SUB_NOTES", :notes) do |s1|
-
-        s1.add_field(:note_title) { |n| n.title }
-
-        s1.add_table ...
-
-      end
-
+    s.add_table("TB_ITEMS", :items, :header => true) do |t|
+      t.add_column(:id)
+      t.add_column(:product) {|item| item.product.name }
+      t.add_column(:value, :product_value)
     end
 
+    s.add_field(:total) do |invoice|
+      if invoice.status == 'CLOSED'
+        invoice.total
+      else
+        invoice.items.sum('product_value')}
+      end
+    end
+
+    s.add_section("SUB_NOTES", :notes) do |s1|
+      s1.add_field(:note_title) { |n| n.title }
+      s1.add_table ...
+    end
   end
-</pre>
+end
+```
 
 Note that when you add a Table to a Section, you don't pass the collection itself, but the attribute of the item of that section that's gonna return the collection for that particular Table. Sounds complicated, huh? But once you get it, it's quite straightforward.
 
-In the above example, @s.add_table("TB_ITEMS", :items, :header => true) do |t|@, the @:items@ thing refers to a @invoice.items@. Easy, right?
+In the above example, `s.add_table("TB_ITEMS", :items, :header => true) do |t|`, the `:items` thing refers to a `invoice.items`. Easy, right?
 
-<hr/><br/>
-
-h3. Step 2  --  generating the document
+### Step 2  --  generating the document
 
 It's fairly simple to generate the document. You can use this inside a Rails application or in a standalone script.
 
-h4. Generating a document in a Rails application
+#### Generating a document in a Rails application
 
 In a controller, you can have a code like this:
 
-<pre>
+```ruby
 def print
-
   @ticket = Ticket.find(params[:id])
 
   # For Rails 3 or latest replace #{RAILS_ROOT} to #{Rails.root}
   report = OdReport::ODF::Report.new("#{RAILS_ROOT}/app/reports/ticket.odt") do |r|
-
     r.add_field(:id,         @ticket.id.to_s)
     r.add_field(:created_by, @ticket.created_by)
     r.add_field(:created_at, @ticket.created_at.strftime("%d/%m/%Y - %H:%M"))
@@ -183,7 +164,6 @@ def print
       t.add_column(:field_name, :name)
       t.add_column(:field_value) { |field| field.text_value || "Empty" }
     end
-
   end
 
   report_file_name = report.generate
@@ -191,17 +171,17 @@ def print
   send_file(report_file_name)
 
 end
-</pre>
+```
 
-The @generate@ method will, er... generate the document in a temp dir and returns the full path of the generated file, so you can send it back to the user.
+The `generate` method will, er... generate the document in a temp dir and returns the full path of the generated file, so you can send it back to the user.
 
 _That's all I have to say about that._
 
-h4. Generating a document in a standalone script
+#### Generating a document in a standalone script
 
 It's just the same as in a Rails app, but you can inform the path where the file will be generated instead of using a temp dir.
 
-<pre>
+```ruby
 report = ODFReport::Report.new("ticket.odt") do |r|
 
 ... populates the report ...
@@ -209,53 +189,54 @@ report = ODFReport::Report.new("ticket.odt") do |r|
 end
 
 report.generate("./documents/")
-</pre>
+```
 
-<hr/>
+### ODSReport
 
-h3. ODSReport
-
-h4. Template
+#### Template
 
 For only replace set in documents in cells variables [VARIABLE_NAME]. And in code:
-<pre>
+```ruby
   report = OdReport::ODS::Report.new("reports/invoice.ods") do |r|
     r.add_field(:organization, organization_name)
     r.add_field(:department, department_name)
     r.add_field(:doc_num, invoice.number)
   end
-</pre>
+```
 After generate file variables be replaced.
 
 You can use code in template
-<pre>
+```
   [% %] - block of code
   [%= %] - value
-</pre>
+```
 You can send collection for block, only one. In template collection named 'records'
 In generate need use :
-<pre>
-      r.add_table(:inventory_positions, collection) do |t|
-        t.add_option(:count_collection, count_collection)
-        t.add_option(:count_positive_collection, count_positive_collection)
-      end
-</pre>
+```ruby
+  r.add_table(:inventory_positions, collection) do |t|
+    t.add_option(:count_collection, count_collection)
+    t.add_option(:count_positive_collection, count_positive_collection)
+  end
+```
 Add option - give context for template. In tep=mplate you can use
-<pre>
+```ruby
   [%= options[:count_collection] %]
-</pre>
+```
 value be replaced.
 
-h3. REQUIREMENTS
+### REQUIREMENTS
 
-*rubyzip*: for manipulating the contents of the odt file, since it's actually a zip file.
-*nokogiri*: for parsing and manipulating the document xml files.
+ * *rubyzip*: for manipulating the contents of the odt file, since it's actually a zip file.
+ * *nokogiri*: for parsing and manipulating the document xml files.
 
-
-<hr/>
-
-h3. THE FUTURE
+### THE FUTURE
 
 Well, this is my first attempt. This gem was extracted from an actual project we developed internally, to fulfill our specific needs.
 
 That said, I would really appreciate any input you can come up with. Critics, suggestions, bug reports are welcome and will be thoroughly examined.
+
+## Changelog
+
+### Version 1.0.2
+
+ * *Support for data types*: The gem supports Numeric and Date. All other types casts to string the way ruby usually do.

@@ -1,7 +1,7 @@
 module OdReport::ODF
 
   class Section
-    include OdReport::Fields, OdReport::Nested
+    include Fields, OdReport::Nested
 
     attr_accessor :fields, :tables, :data, :name, :collection_field, :parent
 
